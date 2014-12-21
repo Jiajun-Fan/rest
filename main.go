@@ -6,6 +6,7 @@ import (
 )
 
 func route(ws *restful.WebService) {
+
 	ws.Route(ws.GET("/users").To(users))
 }
 
