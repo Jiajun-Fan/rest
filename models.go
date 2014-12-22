@@ -36,3 +36,19 @@ type Record struct {
 	Owe       int64
 	Credit    int64
 }
+
+type Dict struct {
+    Id  int64
+    Words []Word
+}
+
+type Word struct {
+    Id int64
+    word string
+    trans []Trans
+}
+
+type Trans struct {
+    Id int64
+    word string
+}

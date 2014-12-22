@@ -6,7 +6,7 @@ import (
 )
 
 func createDB() *gorm.DB {
-	db, err := gorm.Open("sqlite3", "./aalist.db")
+	db, err := gorm.Open("sqlite3", "./dict.db")
 	if err != nil {
 		panic(err)
 	}
