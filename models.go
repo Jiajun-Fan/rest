@@ -37,18 +37,23 @@ type Record struct {
 	Credit    int64
 }
 
+/* -------------------------- *
+ *   For Dictionary project   *
+ * -------------------------- */
+
 type Dict struct {
-    Id  int64
-    Words []Word
+	Id    int64
+	Name  string `sql:"size:255;unique;not null;"`
+	Words []Word
 }
 
 type Word struct {
-    Id int64
-    word string
-    trans []Trans
+	Id    int64
+	word  string
+	trans []Trans
 }
 
 type Trans struct {
-    Id int64
-    word string
+	Id   int64
+	word string
 }

@@ -7,8 +7,8 @@ import (
 
 func main() {
 
-	//db := createDB()
-	//db.CreateTable(&Dict{})
+	db := createDB()
+	db.CreateTable(&Dict{})
 
 	u := DictService{createDB()}
 	u.Register()
