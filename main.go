@@ -7,10 +7,9 @@ import (
 
 func main() {
 
-	db := createDB()
-	db.CreateTable(&Dict{})
+	db := createDB(true)
 
-	u := DictService{createDB()}
+	u := DictService{db}
 	u.Register()
 
 	log.Printf("start listening on localhost:8080")

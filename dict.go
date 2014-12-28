@@ -1,14 +1,28 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/emicklei/go-restful"
 	"github.com/jinzhu/gorm"
 	"io"
+	"io/ioutil"
 	"net/http"
 )
 
 type DictService struct {
 	db *gorm.DB
+}
+
+func err500(err error, response *restful.Response) {
+	response.AddHeader("Content-Type", "text/plain")
+	response.WriteErrorString(http.StatusInternalServerError, err.Error())
+}
+
+func err400(err error, response *restful.Response) {
+	response.AddHeader("Content-Type", "text/plain")
+	response.WriteErrorString(http.StatusBadRequest, err.Error())
 }
 
 func (u DictService) Register() {
@@ -34,7 +48,56 @@ func (u DictService) Register() {
 		Operation("createDict").
 		Reads(Dict{}))
 
+	ws.Route(ws.POST("/trans").To(u.translate).
+		Doc("translate and add to dictionary").
+		Operation("translate").
+		Writes(Word{}))
+
 	restful.Add(ws)
+}
+
+func (u DictService) translate(request *restful.Request, response *restful.Response) {
+	word := new(UserWord)
+	db := getDB()
+	err_input := request.ReadEntity(&word)
+	if err_input != nil {
+		err500(err_input, response)
+		return
+	}
+
+	dict := new(Dict)
+	dict.Id = -1
+	if word.DictId != 0 {
+		db.Where("id = ?", word.DictId).Find(dict)
+	}
+	if dict.Id == -1 {
+		err400(errors.New("bad dictionary id"), response)
+		return
+	}
+	fmt.Printf("%+v", dict)
+
+	url := "http://openapi.baidu.com/public/2.0/bmt/translate?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + word.Word
+	fmt.Printf("%s\n", url)
+	r, err_baidu := http.Get(url)
+	if err_baidu != nil {
+		err500(err_baidu, response)
+		return
+	}
+	defer r.Body.Close()
+	body, err_content := ioutil.ReadAll(r.Body)
+	if err_content != nil {
+		err500(err_content, response)
+		return
+	}
+
+	var transResult TransResult
+	err_json := json.Unmarshal(body, &transResult)
+	if err_json != nil {
+		err500(err_json, response)
+		return
+	}
+	fmt.Printf("%+v\n", transResult)
+	response.WriteEntity(word)
 }
 
 func (u DictService) findDict(request *restful.Request, response *restful.Response) {
@@ -59,4 +122,8 @@ func (u DictService) createDict(request *restful.Request, response *restful.Resp
 	u.db.Create(dict)
 	response.WriteHeader(http.StatusCreated)
 	response.WriteEntity(dict)
+}
+
+type TransService struct {
+	db *gorm.DB
 }

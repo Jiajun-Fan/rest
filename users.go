@@ -6,7 +6,7 @@ import (
 )
 
 func users(req *restful.Request, resp *restful.Response) {
-	db := createDB()
+	db := getDB()
 	user := new(User)
 	db.First(user)
 	io.WriteString(resp, user.NickName)
