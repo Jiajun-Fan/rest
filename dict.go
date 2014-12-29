@@ -3,27 +3,46 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/emicklei/go-restful"
 	"github.com/jinzhu/gorm"
-	"io"
 	"io/ioutil"
 	"net/http"
 )
+
+type HttpException struct {
+	err         error
+	resp        *restful.Response
+	status_code int
+}
+
+func try(e *HttpException) {
+	if e.err != nil {
+		panic(e)
+	}
+}
+
+func except() {
+	e := recover()
+	if exp, ok := e.(*HttpException); ok {
+		exp.resp.AddHeader("Content-Type", "text/plain")
+		exp.resp.WriteErrorString(exp.status_code, exp.err.Error())
+	} else {
+		debug.Printf("oops! unknow exception")
+	}
+}
 
 type DictService struct {
 	db *gorm.DB
 }
 
-func err500(err error, response *restful.Response) {
+/*func dieErrNotNil(err error, response *restful.Response, status_code int) {
+	if err == nil {
+		return
+	}
 	response.AddHeader("Content-Type", "text/plain")
-	response.WriteErrorString(http.StatusInternalServerError, err.Error())
-}
-
-func err400(err error, response *restful.Response) {
-	response.AddHeader("Content-Type", "text/plain")
-	response.WriteErrorString(http.StatusBadRequest, err.Error())
-}
+	response.WriteErrorString(status_code, err.Error())
+	panic("api_error")
+}*/
 
 func (u DictService) Register() {
 	ws := new(restful.WebService)
@@ -51,57 +70,70 @@ func (u DictService) Register() {
 	ws.Route(ws.POST("/trans").To(u.translate).
 		Doc("translate and add to dictionary").
 		Operation("translate").
-		Writes(Word{}))
+		Writes(RealWord{}))
 
 	restful.Add(ws)
 }
 
 func (u DictService) translate(request *restful.Request, response *restful.Response) {
-	word := new(UserWord)
-	db := getDB()
-	err_input := request.ReadEntity(&word)
-	if err_input != nil {
-		err500(err_input, response)
-		return
+	uword := new(UserWord)
+	err := request.ReadEntity(&uword)
+
+	defer except()
+
+	try(&HttpException{err, response, http.StatusBadRequest})
+
+	if uword.DictId == 0 || uword.Word == "" {
+		try(&HttpException{errors.New("bad request"), response, http.StatusBadRequest})
 	}
 
 	dict := new(Dict)
-	dict.Id = -1
-	if word.DictId != 0 {
-		db.Where("id = ?", word.DictId).Find(dict)
-	}
-	if dict.Id == -1 {
-		err400(errors.New("bad dictionary id"), response)
-		return
-	}
-	fmt.Printf("%+v", dict)
-
-	url := "http://openapi.baidu.com/public/2.0/bmt/translate?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + word.Word
-	fmt.Printf("%s\n", url)
-	r, err_baidu := http.Get(url)
-	if err_baidu != nil {
-		err500(err_baidu, response)
-		return
-	}
-	defer r.Body.Close()
-	body, err_content := ioutil.ReadAll(r.Body)
-	if err_content != nil {
-		err500(err_content, response)
-		return
+	u.db.Where("Id = ?", uword.DictId).Find(dict)
+	if u.db.NewRecord(dict) {
+		try(&HttpException{errors.New("bad dictionary id"), response, http.StatusBadRequest})
 	}
 
-	var transResult TransResult
-	err_json := json.Unmarshal(body, &transResult)
-	if err_json != nil {
-		err500(err_json, response)
-		return
+	rword := new(RealWord)
+	u.db.Where("Word = ?", uword.Word).Find(rword)
+
+	if u.db.NewRecord(rword) {
+
+		rword.Word = uword.Word
+
+		debug.Printf("Not exists\n")
+
+		url := "http://openapi.baidu.com/public/2.0/bmt/translate?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + rword.Word
+		r, err := http.Get(url)
+		try(&HttpException{err, response, http.StatusInternalServerError})
+
+		defer r.Body.Close()
+		body, err := ioutil.ReadAll(r.Body)
+		try(&HttpException{err, response, http.StatusInternalServerError})
+
+		var transResult TransResult
+		err = json.Unmarshal(body, &transResult)
+		try(&HttpException{err, response, http.StatusInternalServerError})
+
+		for i := 0; i < len(transResult.Trans_result); i++ {
+			var t Trans
+			t.Trans = transResult.Trans_result[i].Dst
+			rword.Trans = append(rword.Trans, t)
+		}
+
+		u.db.Create(rword)
 	}
-	fmt.Printf("%+v\n", transResult)
-	response.WriteEntity(word)
+
+	uword.WordId = rword.Id
+	u.db.Create(uword)
+
+	response.WriteEntity(uword)
 }
 
 func (u DictService) findDict(request *restful.Request, response *restful.Response) {
-	io.WriteString(response, "world")
+	dict := new(Dict)
+	err := request.ReadEntity(&dict)
+	defer except()
+	try(&HttpException{err, response, http.StatusBadRequest})
 }
 
 func (u DictService) listDict(request *restful.Request, response *restful.Response) {

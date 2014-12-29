@@ -19,9 +19,9 @@ func createDB(init bool) *gorm.DB {
 	if init {
 		db.CreateTable(&Dict{})
 		db.CreateTable(&UserWord{})
-		db.CreateTable(&Word{})
+		db.CreateTable(&RealWord{})
 		db.CreateTable(&Trans{})
-		db.Model(&Word{}).AddUniqueIndex("word", "word")
+		db.Model(&RealWord{}).AddUniqueIndex("word", "word")
 	}
 	return db
 }

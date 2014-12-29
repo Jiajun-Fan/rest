@@ -43,8 +43,8 @@ type Record struct {
 
 type Dict struct {
 	Id    int64
-	Name  string     `sql:"size:255;unique;not null;"`
-	Words []UserWord `gorm:"many2many:user_languages;`
+	Name  string `sql:"size:255;unique;not null;"`
+	Words []UserWord
 }
 
 type UserWord struct {
@@ -55,14 +55,14 @@ type UserWord struct {
 	Extra  string `sql:"size:255"`
 }
 
-type Word struct {
+type RealWord struct {
 	Id    int64
 	Word  string `sql:"size:255;unique;not null"`
 	Trans []Trans
 }
 
 type Trans struct {
-	Id     int64
-	WordId int64
-	Trans  string
+	Id         int64
+	RealWordId int64
+	Trans      string
 }
