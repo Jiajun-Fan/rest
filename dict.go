@@ -23,26 +23,20 @@ func try(e *HttpException) {
 
 func except() {
 	e := recover()
+	if e == nil {
+		return
+	}
 	if exp, ok := e.(*HttpException); ok {
 		exp.resp.AddHeader("Content-Type", "text/plain")
 		exp.resp.WriteErrorString(exp.status_code, exp.err.Error())
 	} else {
-		debug.Printf("oops! unknow exception")
+		panic(e)
 	}
 }
 
 type DictService struct {
 	db *gorm.DB
 }
-
-/*func dieErrNotNil(err error, response *restful.Response, status_code int) {
-	if err == nil {
-		return
-	}
-	response.AddHeader("Content-Type", "text/plain")
-	response.WriteErrorString(status_code, err.Error())
-	panic("api_error")
-}*/
 
 func (u DictService) Register() {
 	ws := new(restful.WebService)
@@ -76,6 +70,8 @@ func (u DictService) Register() {
 }
 
 func (u DictService) translate(request *restful.Request, response *restful.Response) {
+	rword := new(RealWord)
+
 	uword := new(UserWord)
 	err := request.ReadEntity(&uword)
 
@@ -88,19 +84,28 @@ func (u DictService) translate(request *restful.Request, response *restful.Respo
 	}
 
 	dict := new(Dict)
-	u.db.Where("Id = ?", uword.DictId).Find(dict)
+	u.db.Where("id = ?", uword.DictId).Find(dict)
 	if u.db.NewRecord(dict) {
 		try(&HttpException{errors.New("bad dictionary id"), response, http.StatusBadRequest})
 	}
 
-	rword := new(RealWord)
-	u.db.Where("Word = ?", uword.Word).Find(rword)
+	u.db.Where("word = ? AND dict_id = ?", uword.Word, uword.DictId).Find(uword)
+	if !u.db.NewRecord(uword) {
+		u.db.Where("id = ?", uword.WordId).Find(rword)
+		if u.db.NewRecord(rword) {
+			try(&HttpException{errors.New("Internal error"), response, http.StatusInternalServerError})
+		} else {
+			u.db.Model(rword).Related(&rword.Trans)
+		}
+		response.WriteEntity(rword)
+		return
+	}
+
+	u.db.Where("word = ?", uword.Word).Find(rword)
 
 	if u.db.NewRecord(rword) {
 
 		rword.Word = uword.Word
-
-		debug.Printf("Not exists\n")
 
 		url := "http://openapi.baidu.com/public/2.0/bmt/translate?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + rword.Word
 		r, err := http.Get(url)
@@ -126,7 +131,7 @@ func (u DictService) translate(request *restful.Request, response *restful.Respo
 	uword.WordId = rword.Id
 	u.db.Create(uword)
 
-	response.WriteEntity(uword)
+	response.WriteEntity(rword)
 }
 
 func (u DictService) findDict(request *restful.Request, response *restful.Response) {

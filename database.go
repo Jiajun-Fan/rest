@@ -21,7 +21,8 @@ func createDB(init bool) *gorm.DB {
 		db.CreateTable(&UserWord{})
 		db.CreateTable(&RealWord{})
 		db.CreateTable(&Trans{})
-		db.Model(&RealWord{}).AddUniqueIndex("word", "word")
+		db.Model(&UserWord{}).AddIndex("uword", "word")
+		db.Model(&RealWord{}).AddUniqueIndex("rword", "word")
 	}
 	return db
 }
