@@ -50,10 +50,10 @@ func (u DictService) Register() {
 		Operation("listDict").
 		Writes(Dict{}))
 
-	ws.Route(ws.GET("/find/{dict-name}").To(u.findDict).
+	ws.Route(ws.GET("/find/{dict-id}").To(u.findDict).
 		Doc("find a dictionary").
 		Operation("findDict").
-		Param(ws.PathParameter("name", "dictionary name").DataType("string")).
+		Param(ws.PathParameter("dict-id", "dictionary id").DataType("int")).
 		Reads(Dict{}))
 
 	ws.Route(ws.PUT("/create").To(u.createDict).
@@ -146,9 +146,12 @@ func (u DictService) translate(request *restful.Request, response *restful.Respo
 
 func (u DictService) findDict(request *restful.Request, response *restful.Response) {
 	dict := new(Dict)
-	err := request.ReadEntity(&dict)
-	defer except()
-	try(&HttpException{err, response, http.StatusBadRequest})
+	dictId := request.PathParameter("dict-id")
+
+	u.db.Where("id = ?", dictId).Find(dict)
+	u.db.Limit(25).Model(dict).Related(&dict.Words, "DictId")
+
+	response.WriteEntity(dict)
 }
 
 func (u DictService) listDict(request *restful.Request, response *restful.Response) {
