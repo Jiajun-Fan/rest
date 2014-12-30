@@ -1,12 +1,24 @@
 package main
 
 type TransResult struct {
-	From         string
-	To           string
-	Trans_result []TransElem
+	Error int
+	From  string
+	To    string
+	Data  TransData
 }
 
-type TransElem struct {
-	Src string
-	Dst string
+type TransData struct {
+	Symbols   []TransSymbol
+	Word_name string
+}
+
+type TransSymbol struct {
+	Parts []TransPart
+	Ph_am string
+	Ph_en string
+}
+
+type TransPart struct {
+	Means []string
+	Part  string
 }

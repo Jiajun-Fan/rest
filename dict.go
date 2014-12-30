@@ -107,7 +107,7 @@ func (u DictService) translate(request *restful.Request, response *restful.Respo
 
 		rword.Word = uword.Word
 
-		url := "http://openapi.baidu.com/public/2.0/bmt/translate?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + rword.Word
+		url := "http://openapi.baidu.com/public/2.0/translate/dict/simple?client_id=b59swMowBKPkg98uiQnKqsAi&from=auto&to=auto&q=" + rword.Word
 		r, err := http.Get(url)
 		try(&HttpException{err, response, http.StatusInternalServerError})
 
@@ -119,10 +119,20 @@ func (u DictService) translate(request *restful.Request, response *restful.Respo
 		err = json.Unmarshal(body, &transResult)
 		try(&HttpException{err, response, http.StatusInternalServerError})
 
-		for i := 0; i < len(transResult.Trans_result); i++ {
-			var t Trans
-			t.Trans = transResult.Trans_result[i].Dst
-			rword.Trans = append(rword.Trans, t)
+		if transResult.Error != 0 {
+			try(&HttpException{errors.New("can't translate"), response, http.StatusInternalServerError})
+		}
+
+		for i := range transResult.Data.Symbols {
+			symbol := transResult.Data.Symbols[i]
+			for j := range symbol.Parts {
+				part := symbol.Parts[j]
+				for k := range part.Means {
+					var t Trans
+					t.Trans = part.Means[k]
+					rword.Trans = append(rword.Trans, t)
+				}
+			}
 		}
 
 		u.db.Create(rword)
